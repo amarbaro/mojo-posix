@@ -246,6 +246,6 @@ def read_signals(fd: Int32) -> List[Int]:
     """The signal numbers queued on a signal_fd() descriptor, oldest first; empty when none."""
     var out = List[Int]()
     var rec = List[UInt8](length=128, fill=0)  # struct signalfd_siginfo; ssi_signo leads
-    while Int(external_call["read", c_ssize_t](Int(fd), rec.unsafe_ptr(), 128)) == 128:
+    while Int(external_call["__read", c_ssize_t](Int(fd), rec.unsafe_ptr(), 128)) == 128:
         out.append(Int(rec[0]) | (Int(rec[1]) << 8))
     return out^
