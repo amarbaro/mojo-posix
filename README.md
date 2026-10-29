@@ -23,7 +23,7 @@ def main() raises:
 
 ## Install
 
-Requires Mojo 1.1 on Linux. The calls go straight to libc, so no linker flags.
+Requires Mojo 1.2 on Linux. The calls go straight to libc, so no linker flags.
 
 | Way | Command |
 |---|---|

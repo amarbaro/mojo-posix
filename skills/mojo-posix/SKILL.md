@@ -5,7 +5,7 @@ description: "Spawn processes, reap them, read signals and sockets from one poll
 
 # mojo-posix
 
-POSIX processes, signals, `poll` and unix sockets for Mojo 1.1 on Linux, straight to libc.
+POSIX processes, signals, `poll` and unix sockets for Mojo 1.2 on Linux, straight to libc.
 Checked against Python's `os`, `socket` and `select`.
 
 ## Install
