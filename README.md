@@ -1,6 +1,9 @@
 # mojo-posix
 
-[![CI](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml/badge.svg)](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml)
+<!-- badges -->
+[![ci](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml) [![latest release](https://img.shields.io/github/v/release/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/releases/latest) [![license](https://img.shields.io/github/license/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/blob/main/LICENSE)
+<!-- /badges -->
+
 
 Processes, signals, `poll` and unix sockets for Mojo, straight to libc. Spawn a child with
 its own cwd, environment, log files and process group; reap it without blocking; wait on
