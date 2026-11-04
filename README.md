@@ -8,63 +8,30 @@
 Install: `pixi add mojo-posix` once published. For now: `git clone https://github.com/amarbaro/mojo-posix`, then `mojo run -I mojo-posix/src app.mojo`.
 
 ```mojo
-# Run a command, wake on SIGCHLD through a signalfd, collect its exit code.
-from std.os import mkdir
-from std.pathlib import Path
 from posix import block_signals, signal_fd, spawn, reap, PollSet, SIGCHLD
 
 
 def main() raises:
     block_signals([SIGCHLD])  # first in main(): every thread must block what the signalfd reads
-    try:
-        mkdir(".work")
-    except:
-        pass
     var sigs = signal_fd([SIGCHLD])
-    var pid = spawn(["sh", "-c", "echo hello from $PWD; exit 3"], stdout=".work/quick.log", append=False)
+    var pid = spawn(["sh", "-c", "echo hello; exit 3"])
     var ps = PollSet()
     _ = ps.add(sigs)
-    while not ps.wait(1000) > 0:
-        pass
+    _ = ps.wait(1000)  # wakes on SIGCHLD
     print("exit code", reap(pid, True).value())
-    print(Path(".work/quick.log").read_text(), end="")
 ```
 
 | Work | Python | mojo-posix |
 |---|---|---|
 | 1,000 x spawn `/bin/true` + reap | 305 to 317 ms, 12.7 to 12.8 MB | 316 to 317 ms, 11.5 to 11.7 MB |
-Baselines and method: [docs/design.md](docs/design.md)
 <!-- /install -->
-
 
 Processes, signals, `poll` and unix sockets for Mojo, straight to libc. Spawn a child with
 its own cwd, environment, log files and process group; reap it without blocking; wait on
 signals and sockets in one `poll`. Nine scenarios are checked against Python's `os`,
 `socket` and `select`, and it keeps pace with them at about one megabyte less memory.
 
-```mojo
-from posix import block_signals, signal_fd, spawn, reap, PollSet, SIGCHLD
-
-def main() raises:
-    block_signals([SIGCHLD])                  # first: every thread must block what the signalfd reads
-    var sigs = signal_fd([SIGCHLD])
-    var pid = spawn(["sh", "-c", "exit 3"], cwd="/tmp", stdout="job.log")
-    var ps = PollSet()
-    _ = ps.add(sigs)
-    while ps.wait(1000) <= 0:                 # sleeps until the child exits
-        pass
-    print(reap(pid, True).value())            # 3; minus N when signal N killed it
-```
-
-## Install
-
 Requires Mojo 1.2 on Linux. The calls go straight to libc, so no linker flags.
-
-| Way | Command |
-|---|---|
-| Source path | `mojo build -I path/to/mojo-posix/src app.mojo` |
-| Precompiled | `mojo precompile src/posix -o posix.mojoc`, then put it next to your code |
-| Vendor | copy `src/posix/` into your project |
 
 ## What you get
 
