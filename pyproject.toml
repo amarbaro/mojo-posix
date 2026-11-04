@@ -1,6 +1,6 @@
 [project]
 name = "mojo-posix"
-version = "0.1.2"
+version = "0.1.3"
 description = "POSIX processes, signals and sockets for Mojo: spawn with cwd/env/pgid, signalfd, poll"
 license = "Apache-2.0"
 requires-python = ">=3.11,<3.15"
