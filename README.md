@@ -4,6 +4,38 @@
 [![ci](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml) [![latest release](https://img.shields.io/github/v/release/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/releases/latest) [![license](https://img.shields.io/github/license/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/blob/main/LICENSE)
 <!-- /badges -->
 
+<!-- install -->
+Install: `pixi add mojo-posix` once published. For now: `git clone https://github.com/amarbaro/mojo-posix`, then `mojo run -I mojo-posix/src app.mojo`.
+
+```mojo
+# Run a command, wake on SIGCHLD through a signalfd, collect its exit code.
+from std.os import mkdir
+from std.pathlib import Path
+from posix import block_signals, signal_fd, spawn, reap, PollSet, SIGCHLD
+
+
+def main() raises:
+    block_signals([SIGCHLD])  # first in main(): every thread must block what the signalfd reads
+    try:
+        mkdir(".work")
+    except:
+        pass
+    var sigs = signal_fd([SIGCHLD])
+    var pid = spawn(["sh", "-c", "echo hello from $PWD; exit 3"], stdout=".work/quick.log", append=False)
+    var ps = PollSet()
+    _ = ps.add(sigs)
+    while not ps.wait(1000) > 0:
+        pass
+    print("exit code", reap(pid, True).value())
+    print(Path(".work/quick.log").read_text(), end="")
+```
+
+| Work | Python | mojo-posix |
+|---|---|---|
+| 1,000 x spawn `/bin/true` + reap | 305 to 317 ms, 12.7 to 12.8 MB | 316 to 317 ms, 11.5 to 11.7 MB |
+Baselines and method: [docs/design.md](docs/design.md)
+<!-- /install -->
+
 
 Processes, signals, `poll` and unix sockets for Mojo, straight to libc. Spawn a child with
 its own cwd, environment, log files and process group; reap it without blocking; wait on
