@@ -5,7 +5,8 @@
 <!-- /badges -->
 
 <!-- install -->
-Install: `pixi add mojo-posix` once published. For now: `git clone https://github.com/amarbaro/mojo-posix`, then `mojo run -I mojo-posix/src app.mojo`.
+Install: `pixi workspace channel add https://conda.modular.com/max https://prefix.dev/amarbaro/amarbaro`, then `pixi add mojo-posix` (import `posix`). From source: `git clone https://github.com/amarbaro/mojo-posix`, then `mojo run -I mojo-posix/src app.mojo`.
+Toolchains: Mojo 1.2 stable, and the nightly 1.3.0.dev2026110805 in the weekly [mojo-libs](https://github.com/amarbaro/mojo-libs) matrix (36 libraries on stable, 35 on nightly).
 
 ```mojo
 from posix import block_signals, signal_fd, spawn, reap, PollSet, SIGCHLD
