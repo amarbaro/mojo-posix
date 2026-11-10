@@ -1,6 +1,6 @@
 # API
 
-Everything here is asserted in `tests/api.mojo` or played by the nine scenarios in
+Everything here is asserted in `tests/api.mojo` or played by the eleven scenarios in
 `tools/oracle.py` against Python's `os`, `socket` and `select`. `from posix import ...`.
 
 Errors raise `Error("posix: <call>: <strerror> (errno N)")`. Functions that cannot fail in a way
@@ -12,6 +12,7 @@ you would handle return `Bool` or a sentinel, as noted.
 |---|---|
 | `spawn(argv, env=[], cwd="", stdout="", stderr="", append=True, new_session=False) -> Int` | `posix_spawnp` of `argv[0]` (searched on this process's `PATH`); returns the pid. `env` is `NAME=value` strings; empty inherits the live environment, `setenv` changes included. `cwd` "" keeps ours. `stdout` and `stderr` are files created (mode 0666 minus umask) and appended to, or truncated when `append=False`; "" inherits ours; the same path for both shares one descriptor, so lines keep their order. `new_session=True` makes the child a session and group leader (pid == pgid), so `killpg(pid, ...)` reaches its whole tree. The child starts with no blocked signals and default handlers. A program that is not found, a missing `cwd` or an empty `argv` raises (`posix: spawn 'x': No such file or directory (errno 2)`). |
 | `try_spawn(...) -> Tuple[Int, Int]` | `spawn` without the exception: `(pid, 0)`, or `(-1, errno)` when the program cannot start (2 not found, 13 not executable, 22 empty `argv`). |
+| `spawn_pair(argv, env=[], cwd="") -> Tuple[Int, Int32]` | `spawn` with the child's stdin and stdout joined to one end of a unix socketpair; returns `(pid, fd)`, `fd` being our end: non-blocking and close-on-exec, for `recv`, `send_all` and `PollSet`. The child's end is blocking and its stderr is ours. `shutdown_write(fd)` gives the child end of file on stdin while its output stays readable; `recv` returning 0 means the child closed stdout or died, and `reap` says which. You close `fd`. An empty `argv` raises `posix: spawn_pair: empty argv`; a program that is not found raises `posix: spawn_pair 'x': No such file or directory (errno 2)` (a missing `cwd` the same with its errno); no descriptor stays open after a raise. `new_session`, `stdout` and `stderr` are not parameters: stdout is the pair, stderr is inherited. |
 | `reap(pid, block=False) -> Optional[Int]` | Collects a finished child: its exit code, or minus the signal number when a signal killed it (Popen's `returncode`). `None` while it still runs and `block=False`. A second call for the same child, or a pid that is not our child, raises `posix: waitpid: No child processes (errno 10)`. Restarts on `EINTR`. |
 | `kill(pid, sig) -> Bool` | True when the signal was sent. Signal 0 only tests that the process exists. |
 | `killpg(pgid, sig) -> Bool` | The same for every process in a group. |
@@ -71,3 +72,6 @@ thread's errno.
 - 78,000 bytes cross a unix socket in partial sends and receives and arrive identical; the
   receiver sees end of stream after `shutdown_write`.
 - Connecting to a path nobody bound gives errno 2.
+- A child's stdin and stdout on `spawn_pair`: 3 MB each way through `cat` in 64 KB steps arrive
+  identical; half-closing gives the child end of file; a child that exits at once shows end of
+  stream, and a send to it returns False with no `SIGPIPE`.

@@ -4,7 +4,7 @@ for the same scenario name; scripts/check.sh diffs the two.
 
 Usage: oracle.py SCENARIO WORKDIR    (WORKDIR is an empty scratch directory)
 """
-import os, select, signal, socket, sys, time
+import os, select, signal, socket, subprocess, sys, time
 
 def spawn(argv, cwd=None, env=None, out=None, append=False, new_group=False):
     """fork + exec with the child-side steps posix_spawn file actions perform."""
@@ -107,6 +107,42 @@ def case_connect_refused(w):
     try: s.connect(os.path.join(w, "nobody.sock")); print("connected")
     except FileNotFoundError: print("ENOENT")
     except ConnectionRefusedError: print("ECONNREFUSED")
+
+def popen_status(c): return "exit %d" % c if c >= 0 else "signal %d" % -c
+
+def pair(argv):
+    """The child's stdin and stdout are one end of a socketpair; ours is non-blocking."""
+    a, b = socket.socketpair(); a.setblocking(False)
+    p = subprocess.Popen(argv, stdin=b, stdout=b); b.close()
+    return p, a
+
+def case_spawn_pair_cat(w):
+    # 3 MB through cat in 64 KB steps (the socket buffers are far smaller), then half-close
+    p, a = pair(["cat"])
+    msg = bytes(i % 251 for i in range(3 << 20)); got = bytearray(); off = 0
+    while off < len(msg):
+        r, wr, _ = select.select([a], [a], [])
+        if r: got += a.recv(65536)
+        if wr:
+            try: off += a.send(msg[off:off + 65536])
+            except BlockingIOError: pass
+    a.shutdown(socket.SHUT_WR)
+    while True:
+        select.select([a], [], [])
+        c = a.recv(65536)
+        if not c: break
+        got += c
+    print("bytes", len(got)); print("identical", bytes(got) == msg)
+    print(popen_status(p.wait()))
+    a.close()
+
+def case_spawn_pair_exits_at_once(w):
+    p, a = pair(["true"])
+    select.select([a], [], []); print("eof", a.recv(16) == b"")
+    print(popen_status(p.wait()))
+    try: a.send(b"x" * 4096); print("send ok")
+    except BrokenPipeError: print("send EPIPE")
+    a.close()
 
 CASES = {k[5:]: v for k, v in globals().items() if k.startswith("case_")}
 if __name__ == "__main__":

@@ -137,6 +137,20 @@ def try_spawn(
     new_session: Bool = False,
 ) -> Tuple[Int, Int]:
     """spawn() without the exception: (pid, 0), or (-1, errno) when the program cannot start."""
+    return _spawn(argv, env, cwd, stdout, stderr, append, new_session, -1)
+
+
+def _spawn(
+    argv: List[String],
+    env: List[String],
+    cwd: String,
+    stdout: String,
+    stderr: String,
+    append: Bool,
+    new_session: Bool,
+    pair_end: Int,
+) -> Tuple[Int, Int]:
+    """The one posix_spawnp path: pair_end >= 0 is a descriptor the child gets as stdin and stdout."""
     if len(argv) == 0:
         return (-1, 22)  # EINVAL
     var st = List[UInt8](length=_FILE_ACTIONS + _SPAWNATTR + _SIGSET, fill=0)
@@ -148,6 +162,9 @@ def try_spawn(
     var d = cstr(cwd)
     var oflag = Int32(_APPEND if append else _TRUNC)
     _ = external_call["posix_spawn_file_actions_init", Int32](fa)
+    if pair_end >= 0:
+        _ = external_call["posix_spawn_file_actions_adddup2", Int32](fa, Int32(pair_end), Int32(0))
+        _ = external_call["posix_spawn_file_actions_adddup2", Int32](fa, Int32(pair_end), Int32(1))
     if stdout.byte_length() > 0:
         _ = external_call["posix_spawn_file_actions_addopen", Int32](fa, Int32(1), o.unsafe_ptr(), oflag, Int32(0o666))
     if stderr.byte_length() > 0 and stderr == stdout:
@@ -172,6 +189,30 @@ def try_spawn(
     _ = external_call["posix_spawnattr_destroy", Int32](at)
     _ = (st[0], o[0], e[0], d[0], av.data[0], ev.ptrs[0])
     return (-1, Int(rc)) if rc != 0 else (Int(pid), 0)
+
+
+def spawn_pair(argv: List[String], env: List[String] = [], cwd: String = "") raises -> Tuple[Int, Int32]:
+    """Run argv[0] like spawn() with its stdin and stdout joined to one end of a unix socketpair, and
+    return (pid, fd), fd being our end: non-blocking, close-on-exec, for recv() and send_all() (which
+    never raises SIGPIPE) and PollSet. The child's end is blocking and its stderr is ours. The pair
+    is half-closable: shutdown_write(fd) gives the child end of file on stdin while its output stays
+    readable; end of stream on recv() means the child closed stdout or died, and reap() says which.
+    Close fd when done. Raises `posix: spawn_pair ...` on an empty argv or when the program cannot
+    start (not found, bad cwd); no descriptor is left open then."""
+    if len(argv) == 0:
+        raise Error("posix: spawn_pair: empty argv")
+    var sv = List[Int32](length=2, fill=-1)
+    if external_call["socketpair", Int32](Int32(1), Int32(1 | CLOEXEC), Int32(0), sv.unsafe_ptr()) != 0:
+        raise error("socketpair")
+    var ours = sv[0]
+    var theirs = sv[1]
+    _ = external_call["fcntl", Int32, num_fixed_args=2](ours, Int32(4), Int32(NONBLOCK))  # F_SETFL
+    var r = _spawn(argv, env, cwd, "", "", True, False, Int(theirs))
+    _ = external_call["close", Int32](theirs)
+    if r[0] < 0:
+        _ = external_call["close", Int32](ours)
+        raise error_code("spawn_pair '" + argv[0] + "'", r[1])
+    return (r[0], ours)
 
 
 def exec(argv: List[String]) -> Int:

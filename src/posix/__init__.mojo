@@ -1,5 +1,5 @@
 from posix.proc import (
-    getpid, getppid, getpgid, kill, killpg, reap, spawn, try_spawn, exec, environ, block_signals, signal_fd, read_signals,
+    getpid, getppid, getpgid, kill, killpg, reap, spawn, spawn_pair, try_spawn, exec, environ, block_signals, signal_fd, read_signals,
     SIGHUP, SIGINT, SIGKILL, SIGUSR1, SIGUSR2, SIGTERM, SIGCHLD, SIGCONT, SIGSTOP,
 )
 from posix.poll import PollSet, POLLIN, POLLOUT, POLLERR, POLLHUP, POLLNVAL

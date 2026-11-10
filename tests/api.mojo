@@ -1,5 +1,5 @@
 # Every behaviour docs/api.md states that tools/oracle.py scenarios do not already pin down.
-from std.os import getenv, mkdir, setenv
+from std.os import getenv, listdir, mkdir, setenv
 from std.pathlib import Path, cwd
 from std.testing import assert_equal, assert_true, assert_false
 from posix import *
@@ -189,6 +189,132 @@ def test_sockets(dir: String) raises:
         assert_equal(String(e), "posix: waitpid: No child processes (errno 10)")
 
 
+def fds() raises -> Int:
+    return len(listdir("/proc/self/fd"))
+
+
+def flags(fd: Int32) raises -> Int:
+    """The octal `flags:` of /proc/self/fdinfo/fd: O_NONBLOCK is 0o4000, O_CLOEXEC 0o2000000."""
+    for line in Path("/proc/self/fdinfo/" + String(Int(fd))).read_text().split("\n"):
+        if line.startswith("flags:"):
+            var v = 0
+            for c in line.split("\t")[1].as_bytes():
+                v = v * 8 + Int(c) - 48
+            return v
+    return -1
+
+
+def talk(fd: Int32, mut got: List[UInt8], want: Int, ms: Int = 5000) raises:
+    """Append to got until it holds `want` bytes, or end of stream, or ms pass."""
+    var ps = PollSet()
+    _ = ps.add(fd)
+    var left = ms
+    while len(got) < want and left > 0:
+        var n = recv(fd, got)
+        if n == 0:
+            return
+        if n < 0:
+            _ = ps.wait(50)
+            left -= 50
+
+
+def cycle() raises:
+    var r = spawn_pair(["cat"])
+    assert_true(send_all(r[1], "ping\n".as_bytes()))
+    shutdown_write(r[1])
+    var got = List[UInt8]()
+    talk(r[1], got, 1 << 30)  # until end of stream
+    assert_equal(String(unsafe_from_utf8=Span(got)), "ping\n")
+    assert_equal(reap(r[0], True).value(), 0)
+    close(r[1])
+
+
+def test_spawn_pair(dir: String) raises:
+    # empty argv and a missing program raise, and leave no descriptor behind
+    var before = fds()
+    try:
+        _ = spawn_pair([])
+        assert_true(False, "empty argv must raise")
+    except e:
+        assert_equal(String(e), "posix: spawn_pair: empty argv")
+    try:
+        _ = spawn_pair(["no-such-program-xyz"])
+        assert_true(False, "a missing program must raise")
+    except e:
+        assert_equal(String(e), "posix: spawn_pair 'no-such-program-xyz': No such file or directory (errno 2)")
+    try:
+        _ = spawn_pair(["true"], cwd=dir + "/no/such/dir")
+        assert_true(False, "a missing cwd must raise")
+    except e:
+        assert_true("errno 2)" in String(e))
+    assert_equal(fds(), before)
+    # our end does not block; the child's end does (its read waits, it does not see EAGAIN)
+    var r = spawn_pair(["sh", "-c", "read x; echo got $x; echo err >&2"])
+    var got = List[UInt8]()
+    assert_equal(flags(r[1]) & 0o4000, 0o4000)  # recv() passes MSG_DONTWAIT, so only the flag proves it
+    assert_equal(flags(r[1]) & 0o2000000, 0o2000000)
+    assert_equal(recv(r[1], got), -1)
+    _ = send_all(r[1], "abc\n".as_bytes())
+    talk(r[1], got, 1 << 30)
+    assert_equal(String(unsafe_from_utf8=Span(got)), "got abc\n")  # stderr stays out of the pair
+    assert_equal(reap(r[0], True).value(), 0)
+    close(r[1])
+    # env and cwd as spawn()
+    var env: List[String] = ["ZZ=7", "PATH=/usr/bin:/bin"]
+    r = spawn_pair(["sh", "-c", 'echo "$ZZ ${HOME-unset}"; pwd'], env, dir)
+    got = List[UInt8]()
+    talk(r[1], got, 1 << 30)
+    assert_equal(String(unsafe_from_utf8=Span(got)), "7 unset\n" + dir + "\n")
+    assert_equal(reap(r[0], True).value(), 0)
+    close(r[1])
+    # a child that exits at once: end of stream, its status, and a send to the dead peer
+    # returns False without a SIGPIPE ending this program
+    r = spawn_pair(["sh", "-c", "exit 5"])
+    got = List[UInt8]()
+    talk(r[1], got, 1 << 30)
+    assert_equal(len(got), 0)
+    assert_equal(reap(r[0], True).value(), 5)
+    assert_false(send_all(r[1], String("x" * 4096).as_bytes()))
+    close(r[1])
+    # a child killed by a signal while we wait: end of stream, minus the signal
+    r = spawn_pair(["sh", "-c", "kill -KILL $$"])
+    got = List[UInt8]()
+    talk(r[1], got, 1 << 30)
+    assert_equal(reap(r[0], True).value(), -SIGKILL)
+    close(r[1])
+    # 3 MB each way through cat, in steps: nothing lost, in order
+    r = spawn_pair(["cat"])
+    var msg = List[UInt8](capacity=3 << 20)
+    for i in range(3 << 20):
+        msg.append(UInt8(i % 251))
+    got = List[UInt8]()
+    var off = 0
+    while off < len(msg):
+        _ = recv(r[1], got)
+        var n = min(65536, len(msg) - off)
+        assert_true(send_all(r[1], Span(msg)[off : off + n]))
+        off += n
+    shutdown_write(r[1])
+    talk(r[1], got, 1 << 30)
+    assert_equal(len(got), len(msg))
+    var same = True
+    for i in range(len(msg)):
+        same = same and got[i] == msg[i]
+    assert_true(same, "3 MB came back changed")
+    assert_equal(reap(r[0], True).value(), 0)
+    close(r[1])
+    # 1000 spawn, half-close, reap cycles: the same descriptors after, and no child left to wait for
+    before = fds()
+    for _ in range(1000):
+        cycle()
+    assert_equal(fds(), before)
+    try:
+        _ = reap(-1)
+        assert_true(False, "a zombie or a running child is left")
+    except e:
+        assert_true("errno 10)" in String(e))
+
+
 def main() raises:
     block_signals([SIGUSR1, SIGUSR2])  # first, so the re-exec happens before any output
     var dir = String(".work/api")
@@ -202,6 +328,7 @@ def main() raises:
         pass
     dir = String(cwd()) + "/" + dir
     test_spawn(dir)
+    test_spawn_pair(dir)
     test_process()
     test_signals()
     test_poll(dir)

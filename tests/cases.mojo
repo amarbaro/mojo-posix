@@ -5,7 +5,7 @@ from std.pathlib import Path
 from std.sys import argv
 from std.time import sleep, perf_counter
 from posix import (
-    spawn, reap, kill, killpg, getpgid, block_signals, signal_fd, PollSet, SIGTERM, SIGCHLD,
+    spawn, spawn_pair, reap, kill, killpg, getpgid, block_signals, signal_fd, PollSet, SIGTERM, SIGCHLD,
     unix_listen, unix_connect, accept, recv, send_all, shutdown_write, close,
 )
 
@@ -129,6 +129,53 @@ def connect_refused(w: String) raises:
         print("ENOENT" if "errno 2)" in m else ("ECONNREFUSED" if "errno 111)" in m else m))
 
 
+def spawn_pair_cat(w: String) raises:
+    # 3 MB through cat in 64 KB steps (the socket buffers are far smaller), then half-close
+    var r = spawn_pair(["cat"])
+    var msg = List[UInt8](capacity=3 << 20)
+    for i in range(3 << 20):
+        msg.append(UInt8(i % 251))
+    var got = List[UInt8]()
+    var off = 0
+    var ps = PollSet()
+    _ = ps.add(r[1])
+    while off < len(msg):
+        _ = recv(r[1], got)
+        var n = min(65536, len(msg) - off)
+        if send_all(r[1], Span(msg)[off : off + n]):
+            off += n
+    shutdown_write(r[1])
+    while True:
+        var n = recv(r[1], got)
+        if n == 0:
+            break
+        if n < 0:
+            _ = ps.wait(1000)
+    print("bytes", len(got))
+    print("identical", len(got) == len(msg) and all_equal(got, msg))
+    print(finish(r[0]))
+    close(r[1])
+
+
+def all_equal(a: List[UInt8], b: List[UInt8]) -> Bool:
+    for i in range(len(a)):
+        if a[i] != b[i]:
+            return False
+    return True
+
+
+def spawn_pair_exits_at_once(w: String) raises:
+    var r = spawn_pair(["true"])
+    var ps = PollSet()
+    _ = ps.add(r[1])
+    _ = ps.wait(5000)
+    var got = List[UInt8]()
+    print("eof", recv(r[1], got) == 0)
+    print(finish(r[0]))
+    print("send ok" if send_all(r[1], String("x" * 4096).as_bytes()) else "send EPIPE")
+    close(r[1])
+
+
 def main() raises:
     var name = argv()[1]
     var w = String(argv()[2])
@@ -141,4 +188,6 @@ def main() raises:
     elif name == "poll_timeout": poll_timeout(w)
     elif name == "unix_socket_roundtrip": unix_socket_roundtrip(w)
     elif name == "connect_refused": connect_refused(w)
+    elif name == "spawn_pair_cat": spawn_pair_cat(w)
+    elif name == "spawn_pair_exits_at_once": spawn_pair_exits_at_once(w)
     else: raise Error("unknown scenario ", name)

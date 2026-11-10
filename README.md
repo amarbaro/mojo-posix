@@ -40,6 +40,8 @@ Requires Mojo 1.2 on Linux. The calls go straight to libc, so no linker flags.
   working directory, an environment, log files (one path for both streams shares a descriptor)
   and an optional new session so `killpg` reaches the whole tree.
 - `try_spawn`: the same without the exception, `(pid, 0)` or `(-1, errno)`.
+- `spawn_pair(argv, env, cwd) -> (pid, fd)`: a child whose stdin and stdout are one end of a unix
+  socketpair; our end is non-blocking and close-on-exec, for `recv`, `send_all` and `PollSet`.
 - `reap(pid, block)`: the exit code, or minus the signal number, as `Popen.returncode`.
 - `kill`, `killpg`, `exec`, `getpid`, `getppid`, `getpgid`, `environ`.
 - `block_signals`, `signal_fd`, `read_signals`: signals as a pollable descriptor, with the
