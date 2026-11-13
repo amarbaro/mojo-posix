@@ -145,9 +145,9 @@ def test_sockets(dir: String) raises:
     var long = dir + "/" + String("x") * 120
     try:
         _ = unix_listen(long)
-        assert_true(False, "a path over 107 bytes must raise")
+        assert_true(False, "a path over 108 bytes must raise")
     except e:
-        assert_true("longer than 107 bytes" in String(e))
+        assert_true("longer than 108 bytes" in String(e))
     try:
         _ = unix_listen(dir + "/no/such/dir/s.sock")
         assert_true(False, "listen in a missing directory must raise")

@@ -49,7 +49,7 @@ A set of descriptors for `poll(2)`, stored as packed `struct pollfd` records.
 
 | Call | Behaviour |
 |---|---|
-| `unix_listen(path) -> Int32` | A listening stream socket (backlog 128), non-blocking, close-on-exec, mode 0600. A file already at `path` is replaced. A path over 107 bytes, or a directory that is missing, raises. |
+| `unix_listen(path) -> Int32` | A listening stream socket (backlog 128), non-blocking, close-on-exec, mode 0600. A file already at `path` is replaced. A path over 108 bytes, or a directory that is missing, raises. |
 | `unix_connect(path) -> Int32` | A connected, blocking stream socket. No such file raises with errno 2; no listener with errno 111. |
 | `accept(fd) -> Int32` | The next waiting connection (non-blocking, close-on-exec), or -1 when none waits. |
 | `recv(fd, mut buf, block=False) -> Int` | Appends what the socket holds (up to 64 KiB) to `buf`. Returns the bytes added; 0 at end of stream; -1 when nothing is readable yet (`block=False`) or on an error. |
