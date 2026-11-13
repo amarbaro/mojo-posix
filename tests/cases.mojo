@@ -1,3 +1,4 @@
+from std.ffi import external_call
 # The Mojo side of tools/oracle.py: `cases SCENARIO WORKDIR` prints the same lines the oracle prints.
 from std.os import mkdir, remove
 from std.os.path import exists
@@ -81,7 +82,10 @@ def sigchld_wakes_poll(w: String) raises:
 
 def poll_timeout(w: String) raises:
     var ps = PollSet()
-    _ = ps.add(unix_listen(w + "/p.sock"))  # readable only when someone connects
+    var fds = List[Int32](length=2, fill=0)  # a pipe, as the oracle: no path, so no AF_UNIX length limit
+    if external_call["pipe", Int32](fds.unsafe_ptr()) != 0:
+        raise Error("pipe")
+    _ = ps.add(fds[0])  # readable only when someone writes
     var t = perf_counter()
     var n = ps.wait(100)
     var dt = perf_counter() - t

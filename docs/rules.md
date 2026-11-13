@@ -1,0 +1,1 @@
+- The 107->108 fix for poll_timeout was made from the Mojo side only; the oracle polled a pipe, the Mojo case a socket under the 114-byte runner scratch dir, so the matrix stayed red -> a case uses the same kind of fd as its oracle scenario, and a diff is fixed only after reading both sides and reproducing at the runner's real input.
