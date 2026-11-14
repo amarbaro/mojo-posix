@@ -87,7 +87,7 @@ def case_poll_timeout(w):
     print("events", len(ev)); print("waited >= 90 ms", dt >= 0.09); print("waited < 1 s", dt < 1.0)
 
 def case_unix_socket_roundtrip(w):
-    path = os.path.join(w, "s.sock")
+    os.chdir(w); path = "s.sock"  # relative name: the scratch dir may exceed the 108-byte sun_path
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); srv.bind(path); srv.listen(4)
     cli = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); cli.connect(path)
     conn, _ = srv.accept()
@@ -104,7 +104,8 @@ def case_unix_socket_roundtrip(w):
 
 def case_connect_refused(w):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try: s.connect(os.path.join(w, "nobody.sock")); print("connected")
+    os.chdir(w)  # relative name, as in case_unix_socket_roundtrip
+    try: s.connect("nobody.sock"); print("connected")
     except FileNotFoundError: print("ENOENT")
     except ConnectionRefusedError: print("ECONNREFUSED")
 

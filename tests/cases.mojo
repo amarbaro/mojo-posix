@@ -5,6 +5,7 @@ from std.os.path import exists
 from std.pathlib import Path
 from std.sys import argv
 from std.time import sleep, perf_counter
+from posix._sys import cstr
 from posix import (
     spawn, spawn_pair, reap, kill, killpg, getpgid, block_signals, signal_fd, PollSet, SIGTERM, SIGCHLD,
     unix_listen, unix_connect, accept, recv, send_all, shutdown_write, close,
@@ -95,7 +96,8 @@ def poll_timeout(w: String) raises:
 
 
 def unix_socket_roundtrip(w: String) raises:
-    var path = w + "/s.sock"
+    _ = external_call["chdir", Int32](cstr(w).unsafe_ptr())  # relative name: the scratch dir may exceed the 108-byte sun_path
+    var path = String("s.sock")
     var srv = unix_listen(path)
     var cli = unix_connect(path)
     var conn = accept(srv)
@@ -126,7 +128,8 @@ def unix_socket_roundtrip(w: String) raises:
 
 def connect_refused(w: String) raises:
     try:
-        _ = unix_connect(w + "/nobody.sock")
+        _ = external_call["chdir", Int32](cstr(w).unsafe_ptr())  # relative name, as in unix_socket_roundtrip
+        _ = unix_connect("nobody.sock")
         print("connected")
     except e:
         var m = String(e)
