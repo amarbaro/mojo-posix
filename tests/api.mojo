@@ -291,6 +291,8 @@ def test_spawn_pair(dir: String) raises:
     var off = 0
     while off < len(msg):
         _ = recv(r[1], got)
+        while off - len(got) >= 65536:  # cat's echo must not fill our buffer while we wait to send: drain first
+            _ = recv(r[1], got, True)
         var n = min(65536, len(msg) - off)
         assert_true(send_all(r[1], Span(msg)[off : off + n]))
         off += n
