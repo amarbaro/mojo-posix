@@ -1,0 +1,4 @@
+name = "mojo-posix"
+version = "0.1.6"
+description = "POSIX processes, signals and sockets for Mojo: spawn with cwd/env/pgid, signalfd, poll"
+tags = ["mojo", "posix", "process", "socket"]
