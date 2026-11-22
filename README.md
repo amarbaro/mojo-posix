@@ -1,5 +1,7 @@
 # mojo-posix
 
+> **Moved:** this library now lives in [amarbaro/mojo-libs](https://github.com/amarbaro/mojo-libs/tree/main/libs/posix). This repository is read-only; issues and pull requests go there.
+
 <!-- badges -->
 [![ci](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amarbaro/mojo-posix/actions/workflows/ci.yml) [![latest release](https://img.shields.io/github/v/release/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/releases/latest) [![license](https://img.shields.io/github/license/amarbaro/mojo-posix)](https://github.com/amarbaro/mojo-posix/blob/main/LICENSE)
 <!-- /badges -->
